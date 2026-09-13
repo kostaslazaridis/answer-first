@@ -675,28 +675,67 @@ function renderResult(res) {
     </div>`));
 }
 
+// Loads a URL as a <script> tag. This is how the page reads a reply from Apps Script
+// without hitting CORS restrictions: the server answers with callback({...}).
+function jsonp(url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const cb = "__af" + Math.random().toString(36).slice(2);
+    const s = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs || 12000);
+    function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = data => { cleanup(); resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error("script load failed")); };
+    s.src = url + (url.indexOf("?") === -1 ? "?" : "&") + "callback=" + cb;
+    document.head.appendChild(s);
+  });
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function submitAndGrade() {
   const status = document.getElementById("status");
   if (!ENDPOINT_URL) {
     status.innerHTML = '<span class="err">No upload endpoint configured.</span> Please download your data and send it to the researcher.';
     return;
   }
+  const body = JSON.stringify(S);
+  let res = null;
+
+  // Path 1: POST and read the reply directly. Works when the deployment allows it.
   try {
     // text/plain keeps this a simple request, so no CORS preflight is needed.
     const r = await fetch(ENDPOINT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(S),
+      body,
       redirect: "follow"
     });
-    const res = await r.json();
-    if (!res.ok) throw new Error(res.error || "server rejected the submission");
+    const parsed = await r.json();
+    if (parsed && parsed.ok) res = parsed;
+  } catch (e) { /* fall through */ }
+
+  // Path 2: send the data blind, then ask for the debrief with a script tag.
+  if (!res) {
+    let sent = false;
+    try {
+      await fetch(ENDPOINT_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body });
+      sent = true;
+    } catch (e) { /* nothing else to try */ }
+    if (sent) {
+      await sleep(1200);
+      try {
+        const parsed = await jsonp(ENDPOINT_URL + "?pid=" + encodeURIComponent(S.participant_id));
+        if (parsed && parsed.ok) res = parsed;
+      } catch (e) { /* fall through */ }
+    }
+  }
+
+  if (res && res.graded) {
     status.innerHTML = '<span class="ok">Responses saved.</span> Thank you for taking part.';
     renderResult(res);
-  } catch (e) {
-    // The response could not be read (for example a CORS problem). Send it once more
-    // in fire-and-forget mode so the data is not lost, then ask for the download.
-    try { await fetch(ENDPOINT_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(S) }); } catch (_) {}
+  } else if (res) {
+    status.innerHTML = '<span class="ok">Responses saved.</span> Your session was not complete, so the answer sheet is not shown here.';
+  } else {
     status.innerHTML = '<span class="err">Your answers could not be checked here.</span> Please download your data below and send it to the researcher, who will send you the full debrief.';
   }
 }

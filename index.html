@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading study</title>
+<style>
+  :root {
+    --paper: #ffffff;
+    --ink: #1b1d21;
+    --muted: #5e636b;
+    --rule: #d9dbdf;
+    --action: #23508f;
+    --advice-bg: #edf2f9;
+    --advice-edge: #23508f;
+    --focus: #f2b134;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; font-weight: 600; margin: 32px 0 12px; }
+  p { margin: 0 0 14px; }
+  .muted { color: var(--muted); }
+  .progress { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  .passage {
+    font-family: Charter, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    line-height: 1.6;
+    padding: 0 0 18px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 18px;
+  }
+  .question { font-weight: 600; margin-bottom: 14px; }
+  .options { display: grid; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }
+  .options label {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start;
+    padding: 12px 14px; border: 1px solid var(--rule); border-radius: 6px; cursor: pointer;
+  }
+  .options label:has(input:checked) { border-color: var(--ink); background: #f6f7f8; }
+  .options input { margin: 4px 0 0; width: 18px; height: 18px; accent-color: var(--action); }
+  .options .letter { color: var(--muted); }
+  .advice {
+    background: var(--advice-bg);
+    border-left: 4px solid var(--advice-edge);
+    padding: 14px 16px;
+    margin: 0 0 20px;
+    border-radius: 0 6px 6px 0;
+  }
+  .advice .who { font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+  .advice .pick { font-weight: 600; }
+  .locked { opacity: 0.55; pointer-events: none; }
+  button {
+    font: inherit; font-weight: 600;
+    background: var(--action); color: #fff; border: 0; border-radius: 6px;
+    padding: 12px 22px; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--action); border: 1px solid var(--action); }
+  button[disabled] { background: #b7bcc4; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .note { font-size: 14px; color: var(--muted); }
+  table.sus { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 15px; }
+  table.sus th, table.sus td { padding: 10px 6px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  table.sus th { text-align: left; font-weight: 500; }
+  table.sus td { text-align: center; }
+  table.sus thead th { text-align: center; font-size: 13px; color: var(--muted); font-weight: 500; }
+  table.sus thead th:first-child { text-align: left; }
+  table.sus input { width: 18px; height: 18px; accent-color: var(--action); }
+  textarea, select, input[type=text] {
+    font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 6px;
+  }
+  textarea { min-height: 110px; resize: vertical; }
+  .field { margin: 0 0 18px; }
+  .field label { display: block; font-weight: 500; margin-bottom: 6px; }
+  .debrief li { margin-bottom: 8px; }
+  .ok { color: #1f6b3a; font-weight: 600; }
+  .err { color: #9b2c2c; font-weight: 600; }
+  code { font-size: 15px; background: #f2f3f5; padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .advice { animation: appear 220ms ease-out; }
+    @keyframes appear { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script src="items.js"></script>
+<script>
+// Item bank for the answer-first experiment.
+// Each item: id, set (A|B), passage, question, options (4),
+// advice: { option: index the AI recommends, text: one-sentence explanation }.
+// The correct answers are NOT here. They live in apps-script.gs (ANSWER_KEY) so that
+// participants cannot read them from the page source. Keep this file and ANSWER_KEY in sync.
+
+const ITEMS = [
+  // ---------------- SET A ----------------
+  {
+    id: "A01", set: "A",
+    passage: "The town council voted to close the public library on Mondays to reduce heating costs. Attendance records show Monday is the second-busiest day after Saturday. The council's report notes that most Monday visitors are students using the study rooms, and that the university two blocks away also offers study rooms.",
+    question: "Which statement is best supported by the passage?",
+    options: [
+      "The council expects Monday visitors to have an alternative place to study.",
+      "The council also considered closing on Saturdays.",
+      "Heating costs are highest on Mondays.",
+      "Students protested against the decision."
+    ],
+    advice: { option: 0, text: "The report points to the nearby university study rooms, which implies the council expects students to go there instead." }
+  },
+  {
+    id: "A02", set: "A",
+    passage: "A large study found that people who drink coffee live longer on average than people who do not. The authors caution that coffee drinkers in their sample were also more likely to have office jobs and higher incomes.",
+    question: "Why do the authors add this caution?",
+    options: [
+      "Coffee may be harmful for manual workers.",
+      "Income and job type, not coffee, could explain the difference in lifespan.",
+      "Office workers under-report how much coffee they drink.",
+      "The sample was too small to draw conclusions."
+    ],
+    advice: { option: 1, text: "The caution names other differences between the groups that could account for the longer lifespan instead of coffee." }
+  },
+  {
+    id: "A03", set: "A",
+    passage: "A ferry departs every 40 minutes, starting at 6:00 each morning. Maria reaches the dock at 8:10 and is told the previous ferry left at 8:00.",
+    question: "When does the next ferry depart?",
+    options: ["8:20", "8:40", "8:50", "9:00"],
+    advice: { option: 2, text: "Ferries run every 40 minutes, so the next departure is 40 minutes after Maria arrives at 8:10." }
+  },
+  {
+    id: "A04", set: "A",
+    passage: "A software company announced that a new update will be installed automatically unless users opt out within seven days of the notice. In a customer survey, 70% of users said they read update notices \"rarely or never\".",
+    question: "What is the most likely consequence?",
+    options: [
+      "Most users will opt out of the update.",
+      "Most users will receive the update without actively deciding to.",
+      "The update will be delayed until more users respond.",
+      "Users will start reading update notices more carefully."
+    ],
+    advice: { option: 1, text: "If most users do not read notices, most will miss the opt-out window and get the update by default." }
+  },
+  {
+    id: "A05", set: "A",
+    passage: "The museum's first late-night opening attracted 2,000 visitors, twice the usual daily number. Half of them said it was their first visit to the museum. Staff noted that gift-shop sales per visitor were lower than on a normal day.",
+    question: "Which conclusion is supported by the passage?",
+    options: [
+      "First-time visitors spend less in the gift shop than repeat visitors.",
+      "The late opening reached people who had not visited before.",
+      "Total gift-shop revenue was lower than on a normal day.",
+      "The museum will make late openings a weekly event."
+    ],
+    advice: { option: 1, text: "Half of the visitors reported that it was their first visit, which directly supports this statement." }
+  },
+  {
+    id: "A06", set: "A",
+    passage: "A city launched a bike-sharing scheme in January. By December, car traffic in the centre had fallen by 3%. During the same year, fuel prices rose by 20% and a new tram line opened through the centre.",
+    question: "What can be concluded about the bike scheme's effect on car traffic?",
+    options: [
+      "It reduced car traffic by 3%.",
+      "Its effect cannot be separated from the fuel price rise and the tram line.",
+      "It had no effect on car traffic.",
+      "It increased use of the tram."
+    ],
+    advice: { option: 0, text: "The passage reports that traffic fell 3% in the year the scheme was introduced." }
+  },
+  {
+    id: "A07", set: "A",
+    passage: "Lena's manager described her report as \"thorough but hard to follow\". The report runs to 40 pages and has no summary. A colleague's 8-page report on the same topic, which opened with a one-page summary, was praised for clarity.",
+    question: "Which change would most directly address the manager's comment?",
+    options: [
+      "Add more supporting data to the report.",
+      "Add a summary and shorten the report.",
+      "Choose a different topic next time.",
+      "Submit the report earlier."
+    ],
+    advice: { option: 1, text: "The comment is about readability, and the praised report differs mainly in length and having a summary." }
+  },
+  {
+    id: "A08", set: "A",
+    passage: "Researchers gave fertilizer to one group of plants and none to a second group. After six weeks the fertilized plants were taller. The fertilized plants had been placed on the bench nearest the window; the others were on a bench across the room.",
+    question: "What is the main weakness of this experiment?",
+    options: [
+      "There was no control group.",
+      "Light exposure differed between the two groups.",
+      "Too few plants were used.",
+      "Height is a poor measure of plant growth."
+    ],
+    advice: { option: 1, text: "The two groups differed in their distance from the window, so light rather than fertilizer could explain the result." }
+  },
+  {
+    id: "A09", set: "A",
+    passage: "A newspaper reports: \"Unemployment fell to 5% last month, the lowest rate in a decade. The number of people who have stopped looking for work also reached a record high.\"",
+    question: "What does the second sentence suggest about the first?",
+    options: [
+      "The fall in unemployment may partly reflect people leaving the labour force rather than finding jobs.",
+      "Unemployment is actually rising.",
+      "The record low is the result of strong job creation.",
+      "The comparison with the previous decade is invalid."
+    ],
+    advice: { option: 2, text: "A decade-low unemployment rate indicates that the economy is creating jobs at a strong pace." }
+  },
+  {
+    id: "A10", set: "A",
+    passage: "A hotel's average online rating dropped from 4.6 to 4.1 in the three months after it stopped including free breakfast. Over the same period, the share of reviews mentioning \"value for money\" doubled.",
+    question: "Which explanation best fits the passage?",
+    options: [
+      "Guests' ratings reflect their sense of value, not only room quality.",
+      "The quality of the rooms declined.",
+      "Competitors posted fake reviews.",
+      "The breakfast had been of poor quality."
+    ],
+    advice: { option: 0, text: "The rise in reviews about value alongside the removal of a free benefit points to a perceived-value effect." }
+  },
+  {
+    id: "A11", set: "A",
+    passage: "A pharmacy sign reads: \"Open 8:00–20:00 on weekdays, 9:00–14:00 on Saturday. Closed on Sunday and public holidays.\" Tuesday 25 March is a public holiday.",
+    question: "When does the pharmacy next open after it closes on Saturday 22 March?",
+    options: [
+      "Sunday 23 March, 9:00",
+      "Monday 24 March, 8:00",
+      "Tuesday 25 March, 8:00",
+      "Wednesday 26 March, 8:00"
+    ],
+    advice: { option: 3, text: "The pharmacy is closed on Sunday and on the public holiday, so it reopens on Wednesday 26 March at 8:00." }
+  },
+  {
+    id: "A12", set: "A",
+    passage: "A teacher notices that students who sit in the front row tend to score higher on tests. She decides to require her weakest students to sit in the front row from now on.",
+    question: "Which assumption is the teacher making?",
+    options: [
+      "Sitting in the front row causes higher scores, rather than higher-scoring students choosing to sit there.",
+      "Front-row seats are in short supply.",
+      "Weak students prefer to sit at the back.",
+      "Test scores are measured accurately."
+    ],
+    advice: { option: 0, text: "The plan only works if seat position causes the score difference, not the other way round." }
+  },
+
+  // ---------------- SET B ----------------
+  {
+    id: "B01", set: "B",
+    passage: "A gym gives a fee discount to members who visit at least 12 times in a month. After the gym shortened its opening hours, the share of members earning the discount fell from 30% to 20%.",
+    question: "Which explanation best fits the passage?",
+    options: [
+      "Shorter hours made it harder for members to reach 12 visits.",
+      "Members lost interest in the discount.",
+      "The gym raised its fees.",
+      "Membership grew, diluting the percentage."
+    ],
+    advice: { option: 0, text: "Fewer available hours reduce the opportunities to visit, so fewer members reach the 12-visit threshold." }
+  },
+  {
+    id: "B02", set: "B",
+    passage: "An airline reports that 98% of its flights arrived \"on time\" last year, defined as within 15 minutes of the scheduled time. A consumer group notes that the airline lengthened its scheduled flight times by an average of 20 minutes at the start of the year.",
+    question: "What does the consumer group imply?",
+    options: [
+      "Flights became faster this year.",
+      "The on-time figure improved partly because schedules were padded.",
+      "The airline has fewer delays than its competitors.",
+      "The 15-minute definition is too strict."
+    ],
+    advice: { option: 2, text: "A 98% on-time rate is exceptionally high and shows the airline outperforms other carriers." }
+  },
+  {
+    id: "B03", set: "B",
+    passage: "A train departs at 9:15. The scheduled journey time is 2 hours and 50 minutes.",
+    question: "At what time is the train scheduled to arrive?",
+    options: ["11:55", "12:05", "12:15", "11:05"],
+    advice: { option: 1, text: "9:15 plus 2 hours is 11:15, and 50 minutes more gives 12:05." }
+  },
+  {
+    id: "B04", set: "B",
+    passage: "Company memo: \"Remote work is permitted on Fridays for employees whose team has no scheduled client meetings that day.\" The sales team holds client meetings every Friday morning.",
+    question: "What follows for the sales team under this policy?",
+    options: [
+      "They may work remotely on Fridays.",
+      "They may not work remotely on Fridays.",
+      "Their Friday meetings will be moved.",
+      "They may choose a different remote day."
+    ],
+    advice: { option: 1, text: "The team has client meetings every Friday, so the condition for Friday remote work is never met." }
+  },
+  {
+    id: "B05", set: "B",
+    passage: "A survey of 1,000 podcast listeners found that 80% prefer episodes shorter than 30 minutes. The survey link was distributed through the newsletter of a podcast whose episodes average 20 minutes.",
+    question: "What is the main limitation of this survey?",
+    options: [
+      "The sample of 1,000 is too small.",
+      "The sample over-represents people who already like short episodes.",
+      "80% is not a large enough majority.",
+      "Listeners tend to misreport their preferences."
+    ],
+    advice: { option: 0, text: "A sample of 1,000 people is too small to generalise to all podcast listeners." }
+  },
+  {
+    id: "B06", set: "B",
+    passage: "A landlord raised the rent on five flats by 10%. Two tenants left within a month. Both told the landlord they had already been planning to move for work reasons before the increase was announced.",
+    question: "What can be concluded about the effect of the rent increase?",
+    options: [
+      "It caused 40% of tenants to leave.",
+      "It cannot be shown to have caused the departures.",
+      "It had no effect on any tenant.",
+      "The remaining tenants are satisfied with the increase."
+    ],
+    advice: { option: 1, text: "Both departing tenants gave reasons unrelated to rent, so the increase cannot be identified as the cause." }
+  },
+  {
+    id: "B07", set: "B",
+    passage: "Marta reads 25 pages every night. She starts a 400-page book on Monday night and reads every night without skipping.",
+    question: "On which night does she finish the book?",
+    options: [
+      "The Monday of the third week (15th night)",
+      "The Tuesday of the third week (16th night)",
+      "The Wednesday of the third week (17th night)",
+      "The Sunday of the second week (14th night)"
+    ],
+    advice: { option: 1, text: "400 divided by 25 is 16 nights, and counting Monday as night 1 makes night 16 a Tuesday." }
+  },
+  {
+    id: "B08", set: "B",
+    passage: "An online store found that customers who use its \"wish list\" feature spend 50% more per year than customers who do not. The store plans to promote the wish list heavily in order to increase spending.",
+    question: "Which assumption does the store's plan rely on?",
+    options: [
+      "Using the wish list leads to higher spending, rather than heavy spenders being the ones who use wish lists.",
+      "Most customers do not know the feature exists.",
+      "Customer spending is stable from year to year.",
+      "Wish lists reduce product returns."
+    ],
+    advice: { option: 1, text: "Promoting the feature only makes sense if customers are currently unaware of it, so that is the store's key assumption." }
+  },
+  {
+    id: "B09", set: "B",
+    passage: "Weather forecast: \"Rain likely in the morning, clearing by noon. Strong winds throughout the day.\" Kostas plans an outdoor picnic at 13:00 and kite flying in the afternoon.",
+    question: "Which plan is most at risk according to the forecast?",
+    options: [
+      "The picnic, because of rain.",
+      "Kite flying, because of a lack of wind.",
+      "The picnic, because of wind.",
+      "Neither plan is at risk."
+    ],
+    advice: { option: 2, text: "Rain clears before the picnic, but strong wind lasts all day and is a problem for a picnic, not for kites." }
+  },
+  {
+    id: "B10", set: "B",
+    passage: "Bank notice: \"Transfers submitted after 16:00, or on weekends, are processed on the next working day.\" Eleni submits a transfer on Friday at 16:30. There are no public holidays that week or the next.",
+    question: "When will the transfer be processed?",
+    options: ["Friday", "Saturday", "Monday", "Tuesday"],
+    advice: { option: 2, text: "Friday 16:30 is after the cut-off and the weekend is not working time, so the next working day is Monday." }
+  },
+  {
+    id: "B11", set: "B",
+    passage: "Restaurant review: \"The pasta was excellent, the service was slow, and the bill was higher than the menu suggested because of a service charge that was not listed.\" The reviewer gave 3 out of 5.",
+    question: "What most likely lowered the score?",
+    options: [
+      "The quality of the food.",
+      "The slow service and the unlisted charge.",
+      "The portion sizes.",
+      "The location of the restaurant."
+    ],
+    advice: { option: 1, text: "The food is praised, so the two complaints, service and the hidden charge, must account for the middling score." }
+  },
+  {
+    id: "B12", set: "B",
+    passage: "Since speed cameras were installed on the ring road, accidents there have dropped by 40%. Over the same period, accidents on the parallel avenue, which has no cameras, rose by 35%.",
+    question: "What does the second sentence suggest?",
+    options: [
+      "The cameras made drivers safer overall.",
+      "Some traffic or risky driving may have moved to the avenue.",
+      "The cameras on the ring road are malfunctioning.",
+      "The avenue needs wider lanes."
+    ],
+    advice: { option: 0, text: "A 40% drop in accidents shows that the cameras have improved driver safety." }
+  }
+];
+</script>
+
+<script>
+/* ================== CONFIGURATION ================== */
+// Paste the Google Apps Script web-app URL here (see README). Leave "" to disable upload.
+const ENDPOINT_URL = "";
+// Study identifiers written into every record.
+const STUDY_ID = "answer-first-v1";
+const CONTACT = "Konstantinos Lazaridis, UCF IEMS (replace with your email)";
+/* =================================================== */
+
+const SUS_ITEMS = [
+  "I think that I would like to use this system frequently.",
+  "I found the system unnecessarily complex.",
+  "I thought the system was easy to use.",
+  "I think that I would need the support of a technical person to be able to use this system.",
+  "I found the various functions in this system were well integrated.",
+  "I thought there was too much inconsistency in this system.",
+  "I would imagine that most people would learn to use this system very quickly.",
+  "I found the system very cumbersome to use.",
+  "I felt very confident using the system.",
+  "I needed to learn a lot of things before I could get going with this system."
+];
+const LETTERS = ["A", "B", "C", "D"];
+
+// Latin square: g1..g4 cover (condition order) x (set order).
+const GROUPS = {
+  1: { conds: ["simultaneous", "answer_first"], sets: ["A", "B"] },
+  2: { conds: ["answer_first", "simultaneous"], sets: ["A", "B"] },
+  3: { conds: ["simultaneous", "answer_first"], sets: ["B", "A"] },
+  4: { conds: ["answer_first", "simultaneous"], sets: ["B", "A"] }
+};
+
+function uid() {
+  return "P" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+function shuffle(a) {
+  const x = a.slice();
+  for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; }
+  return x;
+}
+function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function mount(node) { const app = document.getElementById("app"); app.replaceChildren(node); window.scrollTo(0, 0); node.querySelector("h1, h2")?.focus?.(); }
+function now() { return performance.now(); }
+
+const params = new URLSearchParams(location.search);
+let group = parseInt(params.get("g"), 10);
+if (!GROUPS[group]) group = 1 + Math.floor(Math.random() * 4);
+
+const S = {
+  participant_id: params.get("id") || uid(),
+  study_id: STUDY_ID,
+  group,
+  started_at: new Date().toISOString(),
+  user_agent: navigator.userAgent,
+  screen: `${screen.width}x${screen.height}`,
+  demographics: {},
+  blocks: [],       // [{ block, condition, set, item_order }]
+  trials: [],       // one record per item; graded on the server
+  sus: [],          // [{ condition, block, responses[10], score }]
+  comments: "",
+  finished_at: null
+};
+
+const plan = GROUPS[group];
+
+/* ---------------- Screens ---------------- */
+
+function screenConsent() {
+  mount(el(`
+  <section>
+    <h1 tabindex="-1">Reading and decision study</h1>
+    <p>You will read short passages and answer multiple-choice questions. An AI assistant will suggest an answer for each question. The suggestions were generated in advance and <strong>may contain mistakes</strong>. Your task is to choose the answer you believe is correct.</p>
+    <p>There are two parts of 12 questions each, with a short questionnaire after each part. The whole study takes about 20 to 25 minutes. Work at your own pace but do not take breaks in the middle of a part, since response times are recorded.</p>
+    <p>Participation is voluntary. You can stop at any time by closing this page; partial data is then discarded. No name or email is collected. Responses are stored under a random participant code and used only for a course project (EIN 6258, UCF). Contact: ${CONTACT}.</p>
+    <p class="note">Your participant code is <code>${S.participant_id}</code>. Keep it if you might want your data removed later.</p>
+    <div class="row">
+      <button id="agree">I agree and want to take part</button>
+    </div>
+  </section>`));
+  document.getElementById("agree").onclick = screenDemographics;
+}
+
+function screenDemographics() {
+  const node = el(`
+  <section>
+    <h1 tabindex="-1">Before you start</h1>
+    <div class="field">
+      <label for="llm">How often do you use AI assistants (ChatGPT, Claude, Gemini, Copilot) for study or work?</label>
+      <select id="llm">
+        <option value="">Choose one</option>
+        <option>Never</option><option>A few times a year</option><option>A few times a month</option>
+        <option>A few times a week</option><option>Daily</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="english">Is English your first language?</label>
+      <select id="english"><option value="">Choose one</option><option>Yes</option><option>No</option></select>
+    </div>
+    <div class="field">
+      <label for="trust">In general, how much do you trust answers from AI assistants? (1 = not at all, 7 = completely)</label>
+      <select id="trust"><option value="">Choose one</option>${[1,2,3,4,5,6,7].map(n=>`<option>${n}</option>`).join("")}</select>
+    </div>
+    <button id="go" disabled>Continue</button>
+  </section>`);
+  mount(node);
+  const sel = [...node.querySelectorAll("select")];
+  const check = () => node.querySelector("#go").disabled = !sel.every(s => s.value);
+  sel.forEach(s => s.onchange = check);
+  node.querySelector("#go").onclick = () => {
+    S.demographics = { llm_use: sel[0].value, english_first: sel[1].value, general_trust: +sel[2].value };
+    startBlock(0);
+  };
+}
+
+function startBlock(b) {
+  const condition = plan.conds[b];
+  const set = plan.sets[b];
+  const items = shuffle(ITEMS.filter(i => i.set === set));
+  S.blocks.push({ block: b + 1, condition, set, item_order: items.map(i => i.id) });
+
+  const instr = condition === "simultaneous"
+    ? `<p>In this part, each question appears <strong>together with the AI assistant's suggestion</strong>. Read the passage, consider the suggestion if you wish, choose your answer, and press <em>Submit answer</em>.</p>`
+    : `<p>In this part, you first answer <strong>on your own</strong>. After you press <em>Submit my answer</em>, the AI assistant's suggestion appears. You may then keep your answer or change it, and press <em>Submit final answer</em>.</p>`;
+
+  mount(el(`
+  <section>
+    <h1 tabindex="-1">Part ${b + 1} of 2</h1>
+    ${instr}
+    <p>Reminder: the suggestions may be wrong. You will not be told whether your answers are correct until the end.</p>
+    <button id="start">Start part ${b + 1}</button>
+  </section>`));
+  document.getElementById("start").onclick = () => runTrial(b, condition, items, 0);
+}
+
+function runTrial(b, condition, items, k) {
+  if (k >= items.length) return screenSUS(b, condition);
+  const it = items[k];
+  const t0 = now();
+  let tInitial = null, initialAnswer = null;
+
+  const optionsHtml = it.options.map((o, i) => `
+    <li><label><input type="radio" name="opt" value="${i}"><span><span class="letter">${LETTERS[i]}.</span> ${o}</span></label></li>`).join("");
+  const adviceHtml = `
+    <div class="advice" id="advice">
+      <div class="who">AI assistant suggestion</div>
+      <div class="pick">Suggested answer: ${LETTERS[it.advice.option]}</div>
+      <div>${it.advice.text}</div>
+    </div>`;
+
+  const node = el(`
+  <section>
+    <div class="progress">Part ${b + 1} &middot; Question ${k + 1} of ${items.length}</div>
+    <div class="passage">${it.passage}</div>
+    <div class="question">${it.question}</div>
+    ${condition === "simultaneous" ? adviceHtml : ""}
+    <ul class="options" id="opts">${optionsHtml}</ul>
+    <div id="slot"></div>
+    <div class="row">
+      <button id="submit" disabled>${condition === "simultaneous" ? "Submit answer" : "Submit my answer"}</button>
+    </div>
+  </section>`);
+  mount(node);
+
+  const radios = [...node.querySelectorAll("input[name=opt]")];
+  const btn = node.querySelector("#submit");
+  const selected = () => { const r = radios.find(x => x.checked); return r ? +r.value : null; };
+  radios.forEach(r => r.onchange = () => btn.disabled = selected() === null);
+
+  let phase = condition === "simultaneous" ? "final" : "initial";
+
+  btn.onclick = () => {
+    const a = selected();
+    if (a === null) return;
+    if (phase === "initial") {
+      tInitial = now();
+      initialAnswer = a;
+      phase = "final";
+      node.querySelector("#slot").replaceWith(el(adviceHtml));
+      btn.textContent = "Submit final answer";
+      btn.disabled = false;
+      node.querySelector("#advice").scrollIntoView({ block: "nearest" });
+      return;
+    }
+    const tFinal = now();
+    // No correctness is computed here: the answer key lives on the server.
+    S.trials.push({
+      participant_id: S.participant_id,
+      group: S.group,
+      block: b + 1,
+      condition,
+      set: it.set,
+      item_id: it.id,
+      position: k + 1,
+      advice_option: it.advice.option,
+      initial_answer: initialAnswer,
+      initial_rt_ms: tInitial === null ? null : Math.round(tInitial - t0),
+      final_answer: a,
+      total_rt_ms: Math.round(tFinal - t0),
+      switched: initialAnswer === null ? null : (initialAnswer !== a ? 1 : 0)
+    });
+    runTrial(b, condition, items, k + 1);
+  };
+}
+
+function screenSUS(b, condition) {
+  const rows = SUS_ITEMS.map((q, i) => `
+    <tr><th scope="row">${i + 1}. ${q}</th>
+      ${[1,2,3,4,5].map(v => `<td><input type="radio" name="s${i}" value="${v}" aria-label="${v}"></td>`).join("")}
+    </tr>`).join("");
+  const node = el(`
+  <section>
+    <h1 tabindex="-1">About the system you just used</h1>
+    <p>Rate the way questions and AI suggestions were presented in part ${b + 1}. 1 = strongly disagree, 5 = strongly agree.</p>
+    <table class="sus">
+      <thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <button id="go" disabled>Continue</button>
+  </section>`);
+  mount(node);
+  const btn = node.querySelector("#go");
+  const check = () => btn.disabled = !SUS_ITEMS.every((_, i) => node.querySelector(`input[name=s${i}]:checked`));
+  node.querySelectorAll("input").forEach(r => r.onchange = check);
+  btn.onclick = () => {
+    const resp = SUS_ITEMS.map((_, i) => +node.querySelector(`input[name=s${i}]:checked`).value);
+    const score = resp.reduce((acc, v, i) => acc + (i % 2 === 0 ? v - 1 : 5 - v), 0) * 2.5;
+    S.sus.push({ condition, block: b + 1, responses: resp, score });
+    if (b === 0) startBlock(1); else screenComments();
+  };
+}
+
+function screenComments() {
+  const node = el(`
+  <section>
+    <h1 tabindex="-1">Almost done</h1>
+    <div class="field">
+      <label for="c">Any comments on the two ways the AI suggestion was shown? Which did you prefer, and why? (optional)</label>
+      <textarea id="c"></textarea>
+    </div>
+    <div class="field">
+      <label for="noticed">Did you notice any AI suggestions that you thought were wrong?</label>
+      <select id="noticed"><option value="">Choose one</option><option>No</option><option>Yes, one or two</option><option>Yes, several</option></select>
+    </div>
+    <button id="go">Finish and see the debrief</button>
+  </section>`);
+  mount(node);
+  node.querySelector("#go").onclick = () => {
+    S.comments = node.querySelector("#c").value.trim();
+    S.demographics.noticed_wrong = node.querySelector("#noticed").value;
+    S.finished_at = new Date().toISOString();
+    screenDebrief();
+  };
+}
+
+function screenDebrief() {
+  const node = el(`
+  <section>
+    <h1 tabindex="-1">Thank you</h1>
+    <p>The AI suggestions in this study were written in advance, and some of them were <strong>deliberately incorrect</strong>. The study tests whether asking people to answer first, before seeing a suggestion, changes how often incorrect suggestions are accepted.</p>
+    <p id="status" class="muted">Saving your responses and checking your answers&hellip;</p>
+    <div id="result"></div>
+    <div class="row">
+      <button class="secondary" id="dl">Download my data (JSON)</button>
+    </div>
+    <p class="note">If saving fails, please download the file and send it to the researcher with your code <code>${S.participant_id}</code>. You can close this page afterwards.</p>
+  </section>`);
+  mount(node);
+  node.querySelector("#dl").onclick = downloadJSON;
+  submitAndGrade();
+}
+
+function downloadJSON() {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${S.study_id}_${S.participant_id}.json`;
+  a.click();
+}
+
+function renderResult(res) {
+  const wrong = S.trials
+    .filter(t => res.key[t.item_id] && res.key[t.item_id].correct !== t.advice_option)
+    .sort((a, b) => a.block - b.block || a.position - b.position);
+  const list = wrong.map(t => {
+    const k = res.key[t.item_id];
+    const ok = t.final_answer === k.correct;
+    return `<li>Part ${t.block}, question ${t.position}: the suggestion was ${LETTERS[t.advice_option]}; the correct answer is ${LETTERS[k.correct]}. ${ok ? "You answered correctly." : "You chose " + LETTERS[t.final_answer] + "."}</li>`;
+  }).join("");
+  document.getElementById("result").replaceChildren(el(`
+    <div>
+      <p>You answered ${res.n_correct} of ${res.n_items} questions correctly. ${wrong.length} of the suggestions you saw were incorrect:</p>
+      <ul class="debrief">${list}</ul>
+    </div>`));
+}
+
+async function submitAndGrade() {
+  const status = document.getElementById("status");
+  if (!ENDPOINT_URL) {
+    status.innerHTML = '<span class="err">No upload endpoint configured.</span> Please download your data and send it to the researcher.';
+    return;
+  }
+  try {
+    // text/plain keeps this a simple request, so no CORS preflight is needed.
+    const r = await fetch(ENDPOINT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(S),
+      redirect: "follow"
+    });
+    const res = await r.json();
+    if (!res.ok) throw new Error(res.error || "server rejected the submission");
+    status.innerHTML = '<span class="ok">Responses saved.</span> Thank you for taking part.';
+    renderResult(res);
+  } catch (e) {
+    // The response could not be read (for example a CORS problem). Send it once more
+    // in fire-and-forget mode so the data is not lost, then ask for the download.
+    try { await fetch(ENDPOINT_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(S) }); } catch (_) {}
+    status.innerHTML = '<span class="err">Your answers could not be checked here.</span> Please download your data below and send it to the researcher, who will send you the full debrief.';
+  }
+}
+
+screenConsent();
+</script>
+</body>
+</html>
